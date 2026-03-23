@@ -1,0 +1,6 @@
+
+venv/
+.venv/
+*.pdf
+secret_*
+__pycache__/
