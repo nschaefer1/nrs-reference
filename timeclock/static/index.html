@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Time Clock</title>
+<style>
+/* ---------- Palette: refined Halloween (orange + violet), no glow ---------- */
+:root{
+  color-scheme:dark;
+  --bg-primary:#0e0e10;--bg-secondary:#161619;--bg-tertiary:#1f1f24;
+  --text-primary:#ededf0;--text-secondary:#8f8f9a;--text-accent:#ff9a5c;
+  --border:#26262c;
+  --color-primary:#ff7f2a;--color-primary-hover:#ff9449;
+  --color-leave:#a78bfa;
+  --color-danger:#e5484d;--color-danger-hover:#f2686c;--color-success:#3ecf8e;
+  --text-on-accent:#1a0e05;--text-on-danger:#fff;
+  --shadow:0 1px 3px rgba(0,0,0,.35);
+}
+:root.light{
+  color-scheme:light;
+  --bg-primary:#f6f6f3;--bg-secondary:#ffffff;--bg-tertiary:#efefeb;
+  --text-primary:#18181b;--text-secondary:#6b6b75;--text-accent:#c2540a;
+  --border:#e6e6e1;
+  --color-primary:#d45a0c;--color-primary-hover:#b84d09;
+  --color-leave:#6d4fc2;
+  --color-danger:#d03a3f;--color-danger-hover:#b22f34;--color-success:#1f9d63;
+  --text-on-accent:#fff;--text-on-danger:#fff;
+  --shadow:0 1px 2px rgba(20,20,20,.06);
+}
+
+/* ---------- Base ---------- */
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg-primary);color:var(--text-primary);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+body{padding:24px;max-width:1120px;margin:0 auto}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.card h3,dialog h3{margin:0 0 12px;font-size:13px;font-weight:600;color:var(--text-secondary)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hd{margin-bottom:14px}
+.sec{color:var(--text-secondary)}.acc{color:var(--text-accent)}.ok{color:var(--color-success)}.bad{color:var(--color-danger-hover)}
+.num{font-variant-numeric:tabular-nums}
+.btn{padding:8px 14px;border-radius:10px;border:1px solid transparent;font:inherit;font-weight:500;cursor:pointer;transition:background .15s,color .15s}
+.btn.sm{padding:5px 10px;font-size:13px}
+.primary{background:var(--color-primary);color:var(--text-on-accent);font-weight:600}
+.primary:hover{background:var(--color-primary-hover)}
+.danger{background:var(--color-danger);color:var(--text-on-danger);font-weight:600}
+.danger:hover{background:var(--color-danger-hover)}
+.ghost{background:transparent;color:var(--text-secondary)}
+.ghost:hover{background:var(--bg-tertiary);color:var(--text-primary)}
+.soft{background:var(--bg-tertiary);color:var(--text-primary)}
+.soft:hover{background:color-mix(in srgb,var(--bg-tertiary) 82%,var(--text-primary))}
+.icon{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+input,select{background:var(--bg-tertiary);color:var(--text-primary);border:1px solid transparent;border-radius:10px;padding:8px 10px;font:inherit;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--color-primary)}
+input:disabled{opacity:.7}
+input[type=checkbox]{width:auto}
+label{display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px}
+label.chk{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px}
+
+/* ---------- Header / tabs ---------- */
+.top{display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.top h1{font-size:18px;margin:0;font-weight:600;letter-spacing:-.01em}
+.top h1 span{color:var(--text-accent)}
+.grow{flex:1}
+.seg{display:inline-flex;background:var(--bg-tertiary);border-radius:12px;padding:3px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--text-secondary);padding:6px 16px;border-radius:9px;font:inherit;font-weight:500;cursor:pointer}
+.seg button:hover{color:var(--text-primary)}
+.seg button.on{background:var(--bg-secondary);color:var(--text-primary);box-shadow:var(--shadow)}
+
+/* ---------- Stat tiles ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:820px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{padding:14px 16px}
+.stat .lbl{font-size:12.5px;color:var(--text-secondary)}
+.stat .v{font-size:24px;font-weight:600;line-height:1.2;margin-top:4px;letter-spacing:-.01em}
+.stat .s{font-size:12px;margin-top:3px;color:var(--text-secondary)}
+.bar{height:4px;border-radius:2px;background:var(--bg-tertiary);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--color-primary);border-radius:2px}
+.bar i.over{background:var(--color-success)}.bar i.neg{background:var(--color-danger-hover)}
+
+/* ---------- Layout ---------- */
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.wkgrid{display:grid;grid-template-columns:1fr 340px;gap:14px}
+.ygrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ygrid>.card:first-child{grid-column:1/-1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:90px 1fr 1fr;gap:10px}
+@media(max-width:960px){.wkgrid,.ygrid{grid-template-columns:1fr}}
+
+/* ---------- Week view ---------- */
+.wkhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.wktitle{font-size:17px;font-weight:600;min-width:190px;text-align:center;letter-spacing:-.01em}
+.req{display:inline-flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary);margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg-tertiary);border-radius:999px;padding:4px 14px;border:1px solid transparent}
+.chip.ov{border-color:var(--color-primary)}
+.chip input{width:44px;background:transparent;border:none;padding:2px 0;text-align:right;font-weight:600;border-radius:0}
+.chip input:focus{border:none}
+.link{background:none;border:none;color:var(--text-accent);cursor:pointer;font:inherit;font-size:12.5px;padding:0}
+.link:hover{text-decoration:underline}
+.clockcard{display:flex;flex-direction:column;gap:8px}
+.timer{font-size:40px;font-weight:300;letter-spacing:.01em;margin:2px 0 6px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;background:var(--text-secondary)}
+.dot.on{background:var(--color-success)}
+
+/* tables */
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:500;text-align:left;color:var(--text-secondary);padding:0 10px 8px}
+th.r,td.r{text-align:right}
+td{padding:11px 10px;border-top:1px solid var(--border);vertical-align:middle}
+tfoot td{font-weight:600}
+tr.today td{background:color-mix(in srgb,var(--color-primary) 7%,transparent)}
+tr.today td:first-child{box-shadow:inset 3px 0 0 var(--color-primary)}
+tr.we td{opacity:.55}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--bg-tertiary)}
+.tag{display:inline-flex;align-items:center;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;margin:2px 6px 2px 0;background:var(--bg-tertiary);color:var(--text-primary)}
+.tag.pto,.tag.sick,.tag.flex,.tag.holiday{background:color-mix(in srgb,var(--color-leave) 16%,transparent);color:var(--color-leave)}
+.tag.comp{background:color-mix(in srgb,var(--color-primary) 16%,transparent);color:var(--text-accent)}
+.tag.live{background:color-mix(in srgb,var(--color-success) 16%,transparent);color:var(--color-success)}
+.x{cursor:pointer;opacity:0;margin-left:6px;font-size:11px;transition:opacity .15s}
+.tag:hover .x{opacity:.7}.x:hover{opacity:1!important;color:var(--color-danger-hover)}
+.note{font-size:12px;color:var(--text-secondary);margin-top:12px;line-height:1.5}
+
+/* calendar */
+.chead,.wkrow{display:grid;grid-template-columns:repeat(7,1fr) 38px;gap:2px}
+.chead{padding:0 2px 4px}
+.dow{font-size:11px;text-align:center;color:var(--text-secondary)}
+.wkrow{padding:2px;border-radius:10px;margin-bottom:1px}
+.wkrow.sel{background:color-mix(in srgb,var(--color-primary) 12%,transparent)}
+.day{border-radius:8px;padding:4px 0 3px;text-align:center;cursor:pointer;min-height:42px}
+.day:hover{background:var(--bg-tertiary)}
+.day.out{opacity:.35}
+.dn{font-size:11px;color:var(--text-secondary)}
+.day.today .dn{color:var(--color-primary);font-weight:700}
+.day.pick{box-shadow:inset 0 0 0 1.5px var(--color-primary)}
+.hv{font-size:12.5px;font-weight:600;min-height:18px;line-height:18px}
+.dots{height:6px;display:flex;justify-content:center;gap:3px}
+.dots i,.leg i{display:inline-block;width:5px;height:5px;border-radius:50%}
+.dots i.leave,.leg i.leave{background:var(--color-leave)}
+.dots i.comp,.leg i.comp{background:var(--color-primary)}
+.wt{display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:var(--text-secondary);cursor:pointer}
+.wt.over{color:var(--text-accent)}
+.leg{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--text-secondary)}
+.leg i{margin-right:5px}
+
+/* month / year / comp */
+.mstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.mini{background:var(--bg-tertiary);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:2px}
+.mini span{font-size:12px}.mini b{font-size:19px;font-weight:600}
+.mini.hl{background:color-mix(in srgb,var(--color-primary) 14%,transparent)}
+.bars{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;height:150px;margin-bottom:16px}
+.bc{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.bv{font-size:11px;color:var(--text-secondary);height:13px}
+.bl{font-size:11px;color:var(--text-secondary)}
+.bt{flex:1;width:100%;display:flex;align-items:flex-end;background:var(--bg-tertiary);border-radius:6px;overflow:hidden}
+.bt i{display:block;width:100%;background:var(--color-primary);opacity:.85}
+table.y th,table.y td{padding-left:6px;padding-right:6px;font-size:13px}
+table.sm th,table.sm td{font-size:13px}
+
+/* custom date picker */
+input.dp{cursor:pointer;padding-right:34px;background:var(--bg-tertiary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f8f9a' stroke-width='2' stroke-linecap='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='3'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E") no-repeat right 11px center}
+.dppop{position:fixed;z-index:1000;width:288px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+.dphead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dphead b{font-size:14px;font-weight:600}
+.dpgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dpgrid .dow{padding:4px 0}
+.dpd{aspect-ratio:1;border:none;background:transparent;color:var(--text-primary);border-radius:9px;font:inherit;font-size:13px;cursor:pointer;padding:0}
+.dpd:hover{background:var(--bg-tertiary)}
+.dpd.out{color:var(--text-secondary);opacity:.5}
+.dpd.today{box-shadow:inset 0 0 0 1px var(--color-primary)}
+.dpd.sel{background:var(--color-primary);color:var(--text-on-accent);font-weight:600;opacity:1}
+.dpfoot{display:flex;justify-content:center;margin-top:8px}
+
+/* dialogs */
+dialog{background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:16px;padding:20px;width:min(540px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.45)}
+dialog::backdrop{background:rgba(0,0,0,.55);backdrop-filter:blur(2px)}
+dialog section{margin-bottom:20px}
+.lotadd{display:grid;grid-template-columns:1fr 80px 1fr auto;gap:8px;margin-top:8px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--color-danger);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:100;max-width:80vw;box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.toast[hidden],.pill[hidden]{display:none}
+.pill{font-size:11px;padding:3px 9px;border-radius:99px;border:1px solid var(--border);color:var(--text-secondary);margin-left:10px;white-space:nowrap}
+
+/* number steppers (replaces native spin buttons) */
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.stepper{min-width:0;display:flex;align-items:stretch;background:var(--bg-tertiary);border:1px solid transparent;border-radius:10px;overflow:hidden;transition:border-color .15s}
+.stepper:focus-within{border-color:var(--color-primary)}
+.stepper input{flex:1;width:0;border:none;background:transparent;border-radius:0;text-align:center;min-width:0;font-variant-numeric:tabular-nums}
+.stepper input:focus{border:none}
+.stepper button{flex:none;width:30px;border:none;background:transparent;color:var(--text-secondary);font:600 16px/1 inherit;cursor:pointer;display:grid;place-items:center;padding:0;transition:background .12s,color .12s}
+.stepper button:hover{background:color-mix(in srgb,var(--color-primary) 16%,transparent);color:var(--text-accent)}
+.stepper button:active{background:color-mix(in srgb,var(--color-primary) 28%,transparent)}
+.chip .stepper{background:transparent;border-radius:8px}
+.chip .stepper input{width:40px;text-align:center}
+.chip .stepper button{width:22px;height:22px;border-radius:6px;align-self:center}
+</style></head><body>
+
+<div class="top">
+  <h1>Time<span>Clock</span></h1><span id="demoPill" class="pill" hidden>Demo data · not saved</span>
+  <div class="seg" id="tabs">
+    <button data-tab="week">Week</button><button data-tab="month">Month</button><button data-tab="year">Year</button><button data-tab="comp">Comp</button>
+  </div>
+  <div class="grow"></div>
+  <button class="btn ghost icon" id="settingsBtn" data-settings title="Settings" aria-label="Settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+  </button>
+  <button class="btn ghost icon" id="theme" title="Toggle light/dark" aria-label="Toggle theme">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+  </button>
+</div>
+
+<div class="stats">
+  <div class="card stat"><div class="lbl" id="sWeekH">Week</div><div class="v num" id="sWeek"></div><div class="s" id="sWeekSub"></div><div class="bar"><i id="sWeekBar"></i></div></div>
+  <div class="card stat"><div class="lbl">Today</div><div class="v num" id="sToday"></div><div class="s" id="sTodaySub"></div><div class="bar"><i id="sTodayBar"></i></div></div>
+  <div class="card stat"><div class="lbl">Comp balance</div><div class="v num acc" id="sComp"></div><div class="s" id="sCompSub"></div></div>
+  <div class="card stat"><div class="lbl">PTO / Vacation left</div><div class="v num" id="sPtoV"></div><div class="s" id="sPtoSub"></div></div>
+</div>
+
+<!-- ================= WEEK ================= -->
+<div id="v-week" class="wkgrid">
+  <div class="card">
+    <div class="wkhead">
+      <button class="btn ghost icon" id="wPrev" aria-label="Previous week">◀</button>
+      <div class="wktitle" id="wk"></div>
+      <button class="btn ghost icon" id="wNext" aria-label="Next week">▶</button>
+      <button class="btn soft sm" id="wNow">This week</button>
+      <div class="req">
+        <button class="link" id="reqReset" hidden></button>
+        <span class="chip" id="reqChip">Required <input type="number" id="reqIn" step="0.5" min="0"> h</span>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Day</th><th>Entries</th><th class="r">Hours</th><th class="r">vs target</th></tr></thead>
+      <tbody id="rows"></tbody>
+      <tfoot><tr><td colspan="2">Week total</td><td class="r num" id="tW"></td><td class="r num" id="tC"></td></tr></tfoot>
+    </table>
+    <div class="note" id="wkNote"></div>
+  </div>
+
+  <div class="col">
+    <div class="card clockcard">
+      <div class="sec"><span class="dot" id="dot"></span><span id="status"></span></div>
+      <div class="timer num" id="timer">0:00:00</div>
+      <button class="btn primary" id="clock"></button>
+      <button class="btn soft" id="openAdd">Add entry</button>
+    </div>
+    <div class="card">
+      <div class="row hd" style="margin-bottom:10px"><b id="calTitle" style="margin-right:auto"></b>
+        <button class="btn ghost sm" id="cPrev">◀</button><button class="btn ghost sm" id="cNow">Today</button><button class="btn ghost sm" id="cNext">▶</button></div>
+      <div class="chead"><div class="dow">Mo</div><div class="dow">Tu</div><div class="dow">We</div><div class="dow">Th</div><div class="dow">Fr</div><div class="dow">Sa</div><div class="dow">Su</div><div class="dow">Wk</div></div>
+      <div id="cal"></div>
+      <div class="leg"><span><i class="leave"></i>Leave</span><span><i class="comp"></i>Comp used</span></div>
+    </div>
+    <div class="card" id="toWeek"></div>
+  </div>
+</div>
+
+<!-- ================= MONTH ================= -->
+<div id="v-month" hidden>
+  <div class="card">
+    <div class="row hd">
+      <button class="btn ghost sm" id="mPrev">◀</button><b id="mTitle" style="min-width:150px;text-align:center"></b><button class="btn ghost sm" id="mNext">▶</button>
+      <button class="btn soft sm" id="mNow">This month</button>
+    </div>
+    <div class="mstats" id="mStats"></div>
+    <table>
+      <thead><tr><th>Week (days in month)</th><th class="r">Worked</th><th class="r">Leave</th><th class="r">Comp used</th><th class="r">Total</th><th class="r">Comp earned</th><th class="r">Short</th></tr></thead>
+      <tbody id="mRows"></tbody>
+    </table>
+    <div class="note">Click a week to open it. Comp earned is credited to the month of the week's ending Sunday.</div>
+  </div>
+</div>
+
+<!-- ================= YEAR ================= -->
+<div id="v-year" class="ygrid" hidden>
+  <div class="card">
+    <div class="row hd">
+      <button class="btn ghost sm" id="yPrev">◀</button><b id="yTitle" style="min-width:60px;text-align:center"></b><button class="btn ghost sm" id="yNext">▶</button>
+      <button class="btn soft sm" id="yNow">This year</button>
+    </div>
+    <div class="bars" id="yBars"></div>
+    <table class="y">
+      <thead><tr><th>Month</th><th class="r">Worked</th><th class="r">PTO/Vac</th><th class="r">Sick</th><th class="r">Flex</th><th class="r">Holiday</th><th class="r">Comp used</th><th class="r">Comp earned</th><th class="r">Short</th><th class="r">Total</th></tr></thead>
+      <tbody id="yRows"></tbody><tfoot id="yFoot"></tfoot>
+    </table>
+    <div class="note">Click a month to open it. Total = worked + leave + flex + comp used. Short = hours below the required total in completed weeks (reduces comp).</div>
+  </div>
+  <div class="card" id="toYear"></div>
+  <div class="card" id="compCard"></div>
+</div>
+
+<!-- ================= COMP ================= -->
+<div id="v-comp" class="col" hidden>
+  <div class="card">
+    <div class="row hd"><h3 style="margin:0;margin-right:auto">Comp time ledger (FIFO)</h3>
+      <label class="chk"><input type="checkbox" id="showAll"> Show used &amp; expired lots</label></div>
+    <div class="mstats" id="cStats"></div>
+    <table class="sm">
+      <thead><tr><th>Earned</th><th>Source</th><th class="r">Hours</th><th class="r">Used</th><th class="r">Deducted</th><th class="r">Expired</th><th class="r">Left</th><th>Expires</th><th>Status</th></tr></thead>
+      <tbody id="cLots"></tbody>
+    </table>
+    <div class="note" id="cNote"></div>
+  </div>
+  <div class="card">
+    <h3>Comp used &amp; deducted</h3>
+    <table class="sm">
+      <thead><tr><th>Date</th><th class="r">Hours</th><th>What</th><th>Drawn from (oldest first)</th></tr></thead>
+      <tbody id="cUses"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ================= ADD ENTRY ================= -->
+<dialog id="dlgAdd">
+  <div class="row hd"><b style="margin-right:auto;font-size:16px">Add entry</b><button class="btn ghost sm" id="addClose">Cancel</button></div>
+  <div class="grid2">
+    <div><label>Date</label><input type="text" id="fDate" class="dp" readonly placeholder="Select date"></div>
+    <div><label>Type</label>
+      <select id="fType">
+        <option value="work">Work</option><option value="pto">PTO / Vacation</option>
+        <option value="sick">Sick</option><option value="flex">Flex</option><option value="holiday">Holiday</option><option value="comp">Comp used</option>
+      </select></div>
+    <div id="gIn"><label>In</label><input type="time" id="fIn" value="08:00"></div>
+    <div id="gOut"><label>Out</label><input type="time" id="fOut" value="17:00"></div>
+    <div id="gHrs" style="display:none;grid-column:1/-1"><label>Hours</label><input type="number" id="fHrs" step="0.25" min="0" value="8"></div>
+    <div style="grid-column:1/-1"><label>Note (optional)</label><input type="text" id="fNote" placeholder="e.g. Day after Thanksgiving"></div>
+  </div>
+  <button class="btn primary" id="add" style="width:100%;margin-top:16px">Add entry</button>
+</dialog>
+
+<!-- ================= SETTINGS ================= -->
+<dialog id="dlg">
+  <div class="row hd"><b style="margin-right:auto;font-size:16px">Settings</b><button class="btn primary sm" id="dlgClose">Done</button></div>
+  <section>
+    <h3>Work week</h3>
+    <div class="grid2">
+      <div><label>Default required hours per week</label><input type="number" id="sWeekHrs" step="0.5" min="1"></div>
+      <div><label>Per day (Mon–Fri)</label><input id="sDayHrs" disabled></div>
+    </div>
+    <div class="note">Used for every week unless you override it in the Week view. Paid leave, sick and flex time count toward it. Hours above it earn comp time; a week that ends below it reduces your comp balance by the shortfall.</div>
+  </section>
+  <section>
+    <h3>Time off allowance</h3>
+    <div class="grid3">
+      <div><label>Year</label><input type="number" id="sYear" step="1"></div>
+      <div><label>PTO / Vacation (h)</label><input type="number" id="sPto" step="0.5" min="0"></div>
+      <div><label>Sick (h, optional)</label><input type="number" id="sSick" step="0.5" min="0" placeholder="not tracked"></div>
+    </div>
+    <div class="note">Enter what you have for that year. Nothing accrues or resets automatically.</div>
+  </section>
+  <section>
+    <h3>Comp time</h3>
+    <div style="max-width:200px"><label>Expires after (months)</label><input type="number" id="sExp" step="1" min="1"></div>
+    <div class="note" style="margin-bottom:8px">Manual balances (e.g. comp carried in). Date = when it was earned; it expires the set number of months later.</div>
+    <table class="sm"><tbody id="sLots"></tbody></table>
+    <div class="lotadd">
+      <input type="text" id="lDate" class="dp" readonly placeholder="Date earned"><input type="number" id="lHrs" step="0.25" min="0" placeholder="hours"><input type="text" id="lNote" placeholder="note"><button class="btn soft" id="lAdd">Add</button>
+    </div>
+  </section>
+</dialog>
+
+<script>
+/* ================= Constants & helpers ================= */
+const LABEL={work:'Work',pto:'PTO/Vac',sick:'Sick',flex:'Flex',holiday:'Holiday',comp:'Comp used'};
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fromIso=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);};
+const addDays=(d,n)=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+n);return x;};
+const addMonths=(d,n)=>{const x=new Date(d.getFullYear(),d.getMonth()+n,d.getDate());if(x.getDate()!==d.getDate())x.setDate(0);return x;};
+const mondayOf=d=>addDays(d,-((d.getDay()+6)%7));
+const hm=s=>{const [h,m]=s.split(':').map(Number);return h+m/60;};
+const tm=x=>`${pad(Math.floor(x))}:${pad(Math.round((x%1)*60))}`;
+const fmt=h=>(h<-0.005?'−':'')+Math.abs(h).toFixed(2);
+const sg=h=>Math.abs(h)<0.005?'0.00':(h>0?'+':'−')+Math.abs(h).toFixed(2);
+const f1=h=>String(Number(h.toFixed(2)));
+const z=h=>Math.abs(h)<0.005?'<span class="sec">·</span>':fmt(h);
+const fd=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+const fdy=s=>fromIso(s).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const todayIso=()=>iso(new Date());
+
+/* ================= State (persisted by app.py through window.pywebview.api) ================= */
+const state={
+  entries:[],
+  openClock:null,
+  config:{weekHours:40,expiryMonths:6},   // default required hours + comp expiry
+  weekReq:{},                             // per-week overrides: Monday ISO -> required hours
+  settings:{},                            // per-year allowances, set manually
+  compLots:[],                            // manual comp balances
+  ui:{theme:'dark'},
+};
+let nid=1;
+
+/* ================= Persistence ================= */
+let LIVE=false,lastSaved=null,saveTimer=null,toastTimer=null;
+const persistable=()=>({entries:state.entries,openClock:state.openClock,config:state.config,weekReq:state.weekReq,settings:state.settings,compLots:state.compLots,ui:state.ui});
+function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,6000);}
+function maybeSave(){
+  if(!LIVE)return;
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(async()=>{
+    const j=JSON.stringify(persistable());
+    if(j===lastSaved)return;
+    try{await window.pywebview.api.save_state(JSON.parse(j));lastSaved=j;}
+    catch(e){toast('Could not save: '+(e&&e.message||e));}
+  },100);
+}
+function applyLoaded(s){
+  state.entries=s.entries||[];
+  state.openClock=s.openClock||null;
+  state.config=Object.assign({weekHours:40,expiryMonths:6},s.config||{});
+  state.weekReq=s.weekReq||{};
+  state.settings=s.settings||{};
+  state.compLots=s.compLots||[];
+  state.ui=Object.assign({theme:'dark'},s.ui||{});
+  nid=1+Math.max(0,...state.entries.map(e=>e.id),...state.compLots.map(l=>l.id));
+}
+const defReq=()=>state.config.weekHours;
+const weekReq=mon=>state.weekReq[iso(mon)]??defReq();
+const dayTarget=d=>(d.getDay()===0||d.getDay()===6)?0:weekReq(mondayOf(d))/5;
+function ys(y){return state.settings[y]??=({pto:0,sick:null});}
+
+/* demo data: only used with ?demo or when opened outside the PyWebview app */
+function seedDemo(){
+  state.openClock={date:'2026-10-30',in:'08:02'};state.weekReq['2026-11-23']=36;ys(2026).pto=160;
+  state.compLots.push({id:nid++,date:'2026-01-01',hours:6.5,note:'Opening balance'});
+  let s=12345;const r=()=>(s=(s*1664525+1013904223)%4294967296)/4294967296;
+  const q=x=>Math.round(x*4)/4;
+  const add=(date,type,hours,extra)=>state.entries.push({id:nid++,date,type,hours,...extra});
+  const work=(date,h,st)=>add(date,'work',h,{in:tm(st),out:tm(st+h)});
+  const hol={'2026-01-01':'New Year','2026-01-19':'MLK Day','2026-05-25':'Memorial Day','2026-07-03':'Independence Day (obs.)','2026-09-07':'Labor Day'};
+  const vac=['2026-07-06','2026-07-07','2026-07-08','2026-07-09','2026-07-10'];
+  const pto=['2026-03-13','2026-05-29','2026-08-14'];
+  const sick={'2026-02-10':8,'2026-04-22':4};
+  const comp={'2026-04-03':8,'2026-08-28':8,'2026-10-02':4};
+  for(let d=new Date(2026,0,1);iso(d)<'2026-10-26';d=addDays(d,1)){
+    const k=iso(d),wd=d.getDay();
+    if(hol[k]){add(k,'holiday',8,{note:hol[k]});continue;}
+    if(wd===0||wd===6){if(r()<0.04)work(k,3,9);continue;}
+    if(vac.includes(k)){add(k,'pto',8,{note:'Vacation'});continue;}
+    if(pto.includes(k)){add(k,'pto',8);continue;}
+    if(sick[k]){add(k,'sick',sick[k]);if(sick[k]<8)work(k,8-sick[k],8);continue;}
+    if(comp[k]){add(k,'comp',comp[k]);if(comp[k]<8)work(k,8-comp[k],8);continue;}
+    work(k,q(7.4+r()*1.4),q(7.5+r()));
+  }
+  work('2026-10-26',8.5,8);work('2026-10-27',9.25,7.75);
+  add('2026-10-28','pto',4);work('2026-10-28',4.5,9);work('2026-10-29',9.5,8);
+}
+
+const T0=new Date();
+const view={tab:'week',weekStart:mondayOf(T0),selDate:todayIso(),cy:T0.getFullYear(),cm:T0.getMonth(),my:T0.getFullYear(),mm:T0.getMonth(),yy:T0.getFullYear(),showAll:false};
+
+/* ================= Theme ================= */
+function setTheme(light){
+  document.documentElement.classList.toggle('light',light);
+  state.ui.theme=light?'light':'dark';
+  maybeSave();
+}
+$('theme').onclick=()=>setTheme(!document.documentElement.classList.contains('light'));
+
+/* ================= Calculations ================= */
+function openHours(){
+  const oc=state.openClock;if(!oc)return 0;
+  const [y,m,d]=oc.date.split('-').map(Number),[h,mi]=oc.in.split(':').map(Number);
+  return Math.max(0,(Date.now()-new Date(y,m-1,d,h,mi).getTime())/3600000);
+}
+let idx={},CS=null,FIRST=null;
+function reindex(){idx={};state.entries.forEach(e=>(idx[e.date]??=[]).push(e));const k=Object.keys(idx);FIRST=k.length?k.reduce((a,b)=>a<b?a:b):null;}
+function dayTot(s){
+  const t={work:0,pto:0,sick:0,flex:0,holiday:0,comp:0};
+  (idx[s]||[]).forEach(e=>t[e.type]+=e.hours);
+  const oc=state.openClock;if(oc&&oc.date===s)t.work+=openHours();
+  return t;
+}
+const leaveOf=t=>t.pto+t.sick+t.flex+t.holiday;       // paid leave, sick & flex count as time worked
+const creditOf=t=>t.work+leaveOf(t)+t.comp;
+function rangeTot(from,to){
+  const t={work:0,pto:0,sick:0,flex:0,holiday:0,comp:0};
+  for(let d=new Date(from);d<=to;d=addDays(d,1)){const x=dayTot(iso(d));for(const k in t)t[k]+=x[k];}
+  return t;
+}
+function weekCalc(mon){
+  const req=weekReq(mon);
+  const days=[...Array(7)].map((_,i)=>{const d=addDays(mon,i),s=iso(d);return {d,s,t:dayTot(s),target:dayTarget(d)};});
+  const sum=k=>days.reduce((a,x)=>a+x.t[k],0);
+  const work=sum('work'),used=sum('comp'),leave=days.reduce((a,x)=>a+leaveOf(x.t),0);
+  const credit=work+leave+used,end=days[6].d;
+  return {days,req,work,leave,used,credit,earned:Math.max(0,work+leave-req),
+    // shortfall vs required (comp used counts as hours); the first tracked week is skipped if tracking began mid-week
+    short:(credit>0.004&&!(FIRST&&FIRST>iso(mon)&&iso(mondayOf(fromIso(FIRST)))===iso(mon)))?Math.max(0,req-credit):0,
+    done:iso(addDays(end,1))<=todayIso(),end};
+}
+function compEarnedIn(from,to){   // credited to the period containing the week's ending Sunday
+  let e=0,m=mondayOf(from);
+  for(;;){const sun=addDays(m,6);if(sun>to)break;if(sun>=from)e+=weekCalc(m).earned;m=addDays(m,7);}
+  return e;
+}
+
+/* ---- Comp ledger: lots earned weekly (dated week-ending Sunday) + manual lots; FIFO use; expiry ---- */
+function compShortIn(from,to){      // shortfall of completed weeks ending in range
+  let t=0,m=mondayOf(from);
+  for(;;){const sun=addDays(m,6);if(sun>to)break;if(sun>=from){const w=weekCalc(m);if(w.done)t+=w.short;}m=addDays(m,7);}
+  return t;
+}
+function compScan(){
+  const lots=state.compLots.map(l=>({src:'manual',date:l.date,hours:l.hours,label:l.note||'Manual balance'}));
+  const shorts=[];
+  const keys=Object.keys(idx);
+  let first=keys.length?keys.reduce((a,b)=>a<b?a:b):null;
+  state.compLots.forEach(l=>{if(!first||l.date<first)first=l.date;});
+  if(first){
+    const lastMon=mondayOf(fromIso(keys.reduce((a,b)=>a>b?a:b,todayIso())));
+    for(let m=mondayOf(fromIso(first));m<=lastMon;m=addDays(m,7)){
+      const w=weekCalc(m);
+      if(w.earned>0.004)lots.push({src:'week',date:iso(w.end),hours:w.earned,label:'Week of '+fd(m)});
+      // a week with no hours logged is treated as untracked, not as a 0-hour week
+      if(w.short>0.004)shorts.push({date:iso(addDays(w.end,1)),disp:iso(w.end),hours:w.short,req:w.req,credit:w.credit,label:'Week of '+fd(m)});
+    }
+  }
+  return {lots,shorts};
+}
+function compSim(asOf){
+  const asOfS=iso(asOf),N=Math.max(1,state.config.expiryMonths|0);
+  const byDate=(a,b)=>a.date<b.date?-1:a.date>b.date?1:0;
+  const scan=compScan();
+  const lots=scan.lots.map(l=>({...l,exp:iso(addMonths(fromIso(l.date),N)),rem:l.hours,usedH:0,dedH:0,expH:0,on:false,dead:false})).sort(byDate);
+  const uses=state.entries.filter(e=>e.type==='comp').map(e=>({id:e.id,date:e.date,hours:e.hours,draws:[],short:0})).sort(byDate);
+  const deds=[],ev=[];
+  lots.forEach(l=>{ev.push({d:l.exp,t:0,lot:l});ev.push({d:l.date,t:1,lot:l});});   // same day: expire, earn, use, deduct
+  uses.forEach(u=>ev.push({d:u.date,t:2,use:u}));
+  scan.shorts.forEach(s=>ev.push({d:s.date,t:3,sh:s}));                              // applied the Monday after the week ends
+  ev.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:a.t-b.t);
+  const shortQ=[];
+  for(const e of ev){
+    if(e.d>asOfS)break;
+    if(e.t===0){const l=e.lot;if(l.on){l.expH=l.rem;l.rem=0;}l.dead=true;}
+    else if(e.t===1){
+      const l=e.lot;l.on=true;
+      while(shortQ.length&&l.rem>0.0001){            // new comp first pays off any earlier overdraw
+        const sq=shortQ[0],take=Math.min(sq.need,l.rem);
+        l.rem-=take;l.usedH+=take;sq.need-=take;sq.use.short=sq.need;sq.use.draws.push({lot:l,h:take});
+        if(sq.need<=0.0001){sq.use.short=0;shortQ.shift();}
+      }
+    }else if(e.t===2){
+      const u=e.use;let need=u.hours;
+      for(const l of lots){
+        if(need<=0.0001)break;
+        if(!l.on||l.dead||l.rem<=0.0001)continue;
+        const take=Math.min(need,l.rem);l.rem-=take;l.usedH+=take;need-=take;u.draws.push({lot:l,h:take});
+      }
+      if(need>0.0001){u.short=need;shortQ.push({use:u,need});}
+    }else{                                            // short week: reduce comp (oldest first), never below zero
+      const s=e.sh,dr=[];let need=s.hours;
+      for(const l of lots){
+        if(need<=0.0001)break;
+        if(!l.on||l.dead||l.rem<=0.0001)continue;
+        const take=Math.min(need,l.rem);l.rem-=take;l.dedH+=take;need-=take;dr.push({lot:l,h:take});
+      }
+      deds.push({disp:s.disp,date:s.date,hours:s.hours,applied:s.hours-need,uncovered:need>0.0001?need:0,draws:dr,req:s.req,credit:s.credit,label:s.label});
+    }
+  }
+  const act=lots.filter(l=>l.on&&!l.dead&&l.rem>0.0001);
+  const deficit=shortQ.reduce((a,x)=>a+x.need,0),soon=iso(addDays(asOf,30));
+  return {lots,uses,deds,deficit,
+    balance:act.reduce((a,l)=>a+l.rem,0)-deficit,
+    next:act.length?{hours:act[0].rem,date:act[0].exp}:null,
+    soon:act.filter(l=>l.exp<=soon).reduce((a,l)=>a+l.rem,0),
+    pending:lots.filter(l=>!l.on).reduce((a,l)=>a+l.hours,0),
+    expired:lots.reduce((a,l)=>a+l.expH,0),
+    earned:lots.filter(l=>l.on).reduce((a,l)=>a+l.hours,0),
+    used:lots.reduce((a,l)=>a+l.usedH,0),
+    deducted:lots.reduce((a,l)=>a+l.dedH,0)};
+}
+
+/* ================= Reusable cards ================= */
+function timeOffHTML(y,compact){
+  const s=ys(y),t=rangeTot(new Date(y,0,1),new Date(y,11,31));
+  const left=s.pto-t.pto,pct=s.pto>0?Math.min(100,t.pto/s.pto*100):0;
+  const sl=s.sick!=null?s.sick-t.sick:null,sp=s.sick>0?Math.min(100,t.sick/s.sick*100):0;
+  return `<div class="row hd" style="margin-bottom:12px"><h3 style="margin:0;margin-right:auto">Time off · ${y}</h3><button class="btn ghost sm" data-settings>Edit</button></div>
+    <div class="row" style="justify-content:space-between"><span>PTO / Vacation</span><span class="num"><b class="${left<0?'bad':''}">${fmt(left)}</b> <span class="sec">left of ${fmt(s.pto)}</span></span></div>
+    <div class="bar"><i class="${left<0?'neg':''}" style="width:${pct}%"></i></div>
+    <div class="row" style="justify-content:space-between;margin-top:14px"><span>Sick</span><span class="num">${sl==null?`<span class="sec">${fmt(t.sick)} used</span>`:`<b class="${sl<0?'bad':''}">${fmt(sl)}</b> <span class="sec">left of ${fmt(s.sick)}</span>`}</span></div>
+    ${sl==null?'':`<div class="bar"><i class="${sl<0?'neg':''}" style="width:${sp}%"></i></div>`}
+    ${compact?'':`<div class="note">Holidays (${fmt(t.holiday)} h) aren't drawn from any balance. Allowances are set manually in Settings.</div>`}`;
+}
+
+/* ================= Rendering ================= */
+function setBar(id,frac,over){const b=$(id);b.style.width=Math.max(0,Math.min(1,frac))*100+'%';b.className=over?'over':'';}
+
+function renderStats(){
+  const T=new Date(),ty=T.getFullYear(),w=weekCalc(view.weekStart);
+  $('sWeekH').textContent='Week of '+fd(view.weekStart);
+  $('sWeek').textContent=fmt(w.credit)+' h';
+  $('sWeekSub').textContent=`of ${f1(w.req)} h required`+(w.earned>0.004?` · ${fmt(w.earned)} comp`:'');
+  setBar('sWeekBar',w.req>0?w.credit/w.req:0,w.credit>w.req+0.005);
+
+  const tot=creditOf(dayTot(todayIso())),tg=dayTarget(T);
+  $('sToday').textContent=fmt(tot)+' h';
+  $('sTodaySub').textContent=(tg===0&&tot<0.005)?'No target today':tot>tg+0.005?`${fmt(tot-tg)} h over target`:Math.abs(tot-tg)<=0.005?'Target met':`${fmt(tg-tot)} h to ${f1(tg)}h`;
+  setBar('sTodayBar',tg?tot/tg:(tot>0?1:0),tot>tg+0.005);
+
+  $('sComp').textContent=fmt(CS.balance)+' h';
+  const bits=[CS.next?`${fmt(CS.next.hours)} h expires ${fd(fromIso(CS.next.date))}`:'Nothing to expire'];
+  if(CS.pending>0.004)bits.push(`+${fmt(CS.pending)} pending`);
+  $('sCompSub').textContent=bits.join(' · ');
+
+  const s=ys(ty),used=rangeTot(new Date(ty,0,1),new Date(ty,11,31)).pto;
+  $('sPtoV').textContent=fmt(s.pto-used)+' h';
+  $('sPtoSub').textContent=`${fmt(used)} of ${fmt(s.pto)} used in ${ty}`;
+}
+
+function renderCal(){
+  const y=view.cy,m=view.cm,last=new Date(y,m+1,0),sel=iso(view.weekStart),today=todayIso();
+  $('calTitle').textContent=new Date(y,m,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  let h='',mon=mondayOf(new Date(y,m,1));
+  while(mon<=last){
+    const w=weekCalc(mon);
+    h+=`<div class="wkrow${iso(mon)===sel?' sel':''}" data-mon="${iso(mon)}">`;
+    w.days.forEach(x=>{
+      const cr=creditOf(x.t);
+      const dots=(leaveOf(x.t)>0.005?'<i class="leave" title="Leave"></i>':'')+(x.t.comp>0.005?'<i class="comp" title="Comp used"></i>':'');
+      h+=`<div class="day${x.d.getMonth()!==m?' out':''}${x.s===today?' today':''}${x.s===view.selDate?' pick':''}" data-d="${x.s}">
+        <div class="dn">${x.d.getDate()}</div><div class="hv num">${cr>0.005?f1(cr):''}</div><div class="dots">${dots}</div></div>`;
+    });
+    const ov=state.weekReq[iso(mon)]!=null;
+    h+=`<div class="wt num${w.credit>w.req+0.005?' over':''}" title="Week total · required ${f1(w.req)} h${ov?' (override)':''}">${w.credit>0.005?f1(w.credit):''}</div></div>`;
+    mon=addDays(mon,7);
+  }
+  $('cal').innerHTML=h;
+}
+
+function renderWeek(){
+  const w=weekCalc(view.weekStart),today=todayIso(),oc=state.openClock;
+  $('wk').textContent=`${fd(view.weekStart)} – ${fd(w.end)}, ${w.end.getFullYear()}`;
+  const ov=state.weekReq[iso(view.weekStart)]!=null;
+  if(document.activeElement!==$('reqIn'))$('reqIn').value=f1(w.req);
+  $('reqChip').classList.toggle('ov',ov);
+  $('reqReset').hidden=!ov;$('reqReset').textContent=`Reset to ${f1(defReq())}`;
+  renderCal();
+  $('toWeek').innerHTML=timeOffHTML(addDays(view.weekStart,3).getFullYear(),true);
+  $('rows').innerHTML=w.days.map(x=>{
+    const es=idx[x.s]||[];
+    let tags=es.map(e=>{
+      const txt=e.type==='work'?`${e.in}–${e.out}`:`${LABEL[e.type]} ${fmt(e.hours)}h`+(e.note?` · ${esc(e.note)}`:'');
+      return `<span class="tag ${e.type}" title="${esc(e.note||'')}">${txt}<span class="x" data-id="${e.id}" title="Delete">✕</span></span>`;
+    }).join('');
+    if(oc&&oc.date===x.s)tags+=`<span class="tag live">${oc.in}–now</span>`;
+    if(!tags)tags='<span class="sec">—</span>';
+    const cr=creditOf(x.t),dl=cr-x.target,quiet=x.target===0&&cr<0.005;
+    return `<tr class="${x.s===today?'today':''} ${quiet?'we':''}">
+      <td><b>${x.d.toLocaleDateString(undefined,{weekday:'short'})}</b> <span class="sec">${x.d.getDate()}</span></td><td>${tags}</td>
+      <td class="r num">${quiet?'':fmt(cr)}</td>
+      <td class="r num ${dl>0.005?'acc':'sec'}">${quiet?'':sg(dl)}</td></tr>`;
+  }).join('');
+  $('tW').textContent=fmt(w.credit);$('tC').textContent=sg(w.credit-w.req);
+  let note='No comp earned this week.';
+  if(w.earned>0.004)note=`Comp earned this week: <b>${fmt(w.earned)} h</b>, added Sunday and expiring ${fdy(iso(addMonths(w.end,state.config.expiryMonths)))}.`;
+  else if(w.short>0.004&&w.done){
+    const dd=CS.deds.find(d=>d.disp===iso(w.end));
+    note=`Short by <b>${fmt(w.short)} h</b> this week`+(dd?`: <b>${fmt(dd.applied)} h</b> deducted from comp`+(dd.uncovered>0.004?` (${fmt(dd.uncovered)} h not covered, no comp left)`:''):'')+'.';
+  }
+  $('wkNote').innerHTML=note;
+}
+
+function monthData(y,m){
+  const from=new Date(y,m,1),to=new Date(y,m+1,0),rows=[];
+  let mon=mondayOf(from);
+  while(mon<=to){
+    const sun=addDays(mon,6),a=mon<from?from:mon,b=sun>to?to:sun,inM=sun>=from&&sun<=to,w=inM?weekCalc(mon):null;
+    rows.push({mon,a,b,rt:rangeTot(a,b),partial:mon<from||sun>to,earned:inM?w.earned:null,short:inM?(w.done?w.short:0):null});
+    mon=addDays(mon,7);
+  }
+  return {t:rangeTot(from,to),earned:compEarnedIn(from,to),short:compShortIn(from,to),rows};
+}
+function renderMonth(){
+  const {t,earned,short,rows}=monthData(view.my,view.mm);
+  $('mTitle').textContent=new Date(view.my,view.mm,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const items=[['Worked',t.work],['PTO / Vacation',t.pto],['Sick',t.sick],['Flex',t.flex],['Holiday',t.holiday],['Comp used',t.comp],['Comp earned',earned],['Short (reduces comp)',short],['Total credited',creditOf(t)]];
+  $('mStats').innerHTML=items.map(([l,v],i)=>`<div class="mini${i===8?' hl':''}"><span class="sec">${l}</span><b class="num">${fmt(v)}</b></div>`).join('');
+  $('mRows').innerHTML=rows.map(r=>`<tr class="click" data-mon="${iso(r.mon)}">
+    <td>${fd(r.a)} – ${fd(r.b)}${r.partial?' <span class="sec">· partial</span>':''}</td>
+    <td class="r num">${fmt(r.rt.work)}</td><td class="r num">${z(leaveOf(r.rt))}</td><td class="r num">${z(r.rt.comp)}</td>
+    <td class="r num"><b>${fmt(creditOf(r.rt))}</b></td><td class="r num acc">${r.earned==null?'<span class="sec">—</span>':z(r.earned)}</td>
+    <td class="r num bad">${r.short==null?'<span class="sec">—</span>':z(r.short)}</td></tr>`).join('');
+}
+
+function renderYear(){
+  const y=view.yy;let maxT=1;const rows=[];
+  $('yTitle').textContent=y;
+  for(let m=0;m<12;m++){
+    const from=new Date(y,m,1),to=new Date(y,m+1,0),t=rangeTot(from,to),tot=creditOf(t);
+    maxT=Math.max(maxT,tot);rows.push({m,t,e:compEarnedIn(from,to),sh:compShortIn(from,to),tot});
+  }
+  $('yBars').innerHTML=rows.map(r=>`<div class="bc"><span class="bv num">${r.tot>0.005?Math.round(r.tot):''}</span><div class="bt"><i style="height:${r.tot/maxT*100}%"></i></div><span class="bl">${MN[r.m]}</span></div>`).join('');
+  $('yRows').innerHTML=rows.map(r=>`<tr class="click" data-m="${r.m}"><td>${MN[r.m]}</td><td class="r num">${fmt(r.t.work)}</td>
+    <td class="r num">${z(r.t.pto)}</td><td class="r num">${z(r.t.sick)}</td><td class="r num">${z(r.t.flex)}</td><td class="r num">${z(r.t.holiday)}</td>
+    <td class="r num">${z(r.t.comp)}</td><td class="r num acc">${z(r.e)}</td><td class="r num bad">${z(r.sh)}</td><td class="r num"><b>${fmt(r.tot)}</b></td></tr>`).join('');
+  const S=f=>rows.reduce((a,r)=>a+f(r),0);
+  $('yFoot').innerHTML=`<tr><td>Total</td><td class="r num">${fmt(S(r=>r.t.work))}</td><td class="r num">${fmt(S(r=>r.t.pto))}</td>
+    <td class="r num">${fmt(S(r=>r.t.sick))}</td><td class="r num">${fmt(S(r=>r.t.flex))}</td><td class="r num">${fmt(S(r=>r.t.holiday))}</td><td class="r num">${fmt(S(r=>r.t.comp))}</td>
+    <td class="r num acc">${fmt(S(r=>r.e))}</td><td class="r num bad">${fmt(S(r=>r.sh))}</td><td class="r num">${fmt(S(r=>r.tot))}</td></tr>`;
+  $('toYear').innerHTML=timeOffHTML(y,false);
+  $('compCard').innerHTML=`<h3>Comp time</h3>
+    <div class="row" style="justify-content:space-between"><span class="sec">Balance now</span><b class="num acc">${fmt(CS.balance)} h</b></div>
+    <div class="row" style="justify-content:space-between;margin-top:6px"><span class="sec">Next expiry</span><span class="num">${CS.next?`${fmt(CS.next.hours)} h on ${fdy(CS.next.date)}`:'—'}</span></div>
+    <button class="btn soft sm" data-goto="comp" style="margin-top:14px">Open ledger</button>`;
+}
+
+function renderComp(){
+  const c=CS,today=todayIso(),soonS=iso(addDays(new Date(),30));
+  $('showAll').checked=view.showAll;
+  const items=[['Balance now',c.balance,1],['Expiring ≤ 30 days',c.soon],['Pending (not yet earned)',c.pending],['Expired to date',c.expired],['Earned to date',c.earned],['Used (comp days)',c.used],['Deducted (short weeks)',c.deducted]];
+  $('cStats').innerHTML=items.map(([l,v,hl])=>`<div class="mini${hl?' hl':''}"><span class="sec">${l}</span><b class="num${hl?' acc':''}">${fmt(v)}</b></div>`).join('');
+  const rows=c.lots.filter(l=>view.showAll||!l.on||(!l.dead&&l.rem>0.0001));
+  $('cLots').innerHTML=rows.map(l=>{
+    const st=!l.on?'Pending':(l.dead&&l.expH>0.0001)?'Expired':l.rem<=0.0001?'Used':'Active';
+    const soon=st==='Active'&&l.exp<=soonS;
+    return `<tr><td>${fdy(l.date)}</td><td>${esc(l.label)}</td><td class="r num">${fmt(l.hours)}</td><td class="r num">${z(l.usedH)}</td><td class="r num">${z(l.dedH)}</td>
+      <td class="r num ${l.expH>0.0001?'bad':''}">${z(l.expH)}</td><td class="r num"><b>${st==='Pending'?'<span class="sec">—</span>':fmt(l.rem)}</b></td>
+      <td class="${soon?'bad':''}">${fdy(l.exp)}</td><td class="${st==='Active'?'ok':'sec'}">${st}</td></tr>`;
+  }).join('')||'<tr><td colspan="9" class="sec">No active comp.</td></tr>';
+  const lotTxt=d=>`${f1(d.h)} h · ${esc(d.lot.label)}`;
+  const log=[
+    ...c.uses.map(u=>({date:u.date,hours:u.hours,what:'Comp day',dr:u.draws.map(lotTxt).join(' + '),
+      tail:u.date>today?'<span class="sec">Scheduled</span>':(u.short>0.0001?`<span class="bad">${fmt(u.short)} h short (no comp available)</span>`:'')})),
+    ...c.deds.map(d=>({date:d.disp,hours:d.applied,what:`Short week · ${f1(d.credit)} of ${f1(d.req)} h`,dr:d.draws.map(lotTxt).join(' + '),
+      tail:d.uncovered>0.0001?`<span class="sec">${fmt(d.uncovered)} h not covered (no comp left)</span>`:''}))
+  ].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  $('cUses').innerHTML=log.map(u=>`<tr><td style="white-space:nowrap">${fdy(u.date)}</td><td class="r num">${fmt(u.hours)}</td><td>${u.what}</td><td>${u.dr}${u.dr&&u.tail?' ':''}${u.tail}</td></tr>`).join('')
+    ||'<tr><td colspan="4" class="sec">Nothing used or deducted yet.</td></tr>';
+  $('cNote').textContent=`Comp used draws from the oldest lot first. A completed week that ends below its required hours also deducts the shortfall (never below zero, applied the Monday after). Each lot expires ${state.config.expiryMonths} months after it's earned; unused hours are then forfeited. Weeks with no hours logged are ignored.`;
+}
+
+function renderClock(){
+  const on=!!state.openClock;
+  $('dot').className='dot'+(on?' on':'');
+  $('status').textContent=on?`Clocked in since ${state.openClock.in}`:'Clocked out';
+  $('clock').textContent=on?'Clock out':'Clock in';
+  $('clock').className='btn '+(on?'danger':'primary');
+  tick();
+}
+function tick(){
+  const oc=state.openClock;
+  if(!oc){$('timer').textContent='0:00:00';return;}
+  const s=Math.floor(openHours()*3600);
+  $('timer').textContent=`${Math.floor(s/3600)}:${pad(Math.floor(s%3600/60))}:${pad(s%60)}`;
+}
+
+function render(){
+  reindex();
+  const T=new Date();CS=compSim(new Date(T.getFullYear(),T.getMonth(),T.getDate()));
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===view.tab));
+  ['week','month','year','comp'].forEach(k=>$('v-'+k).hidden=view.tab!==k);
+  renderStats();
+  ({week:renderWeek,month:renderMonth,year:renderYear,comp:renderComp})[view.tab]();
+  renderClock();
+  maybeSave();
+}
+setInterval(()=>{
+  tick();
+  if(state.openClock&&new Date().getSeconds()===0&&!/INPUT|SELECT/.test((document.activeElement||{}).tagName||'')&&!document.querySelector('dialog[open]'))render();
+},1000);
+
+/* ================= Navigation / actions ================= */
+function syncCal(){const th=addDays(view.weekStart,3);view.cy=th.getFullYear();view.cm=th.getMonth();}
+function selectWeek(mon,date,keepCal){
+  view.weekStart=mon;
+  const inWeek=mondayOf(new Date()).getTime()===mon.getTime();
+  view.selDate=date||(inWeek?todayIso():iso(mon));
+  if(!keepCal)syncCal();
+  render();
+}
+$('tabs').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  view.tab=b.dataset.tab;
+  const th=addDays(view.weekStart,3);
+  if(view.tab==='month'){view.my=th.getFullYear();view.mm=th.getMonth();}
+  if(view.tab==='year'){view.yy=th.getFullYear();}
+  render();
+};
+$('cal').onclick=e=>{
+  const row=e.target.closest('.wkrow');if(!row)return;
+  const d=e.target.closest('.day');
+  selectWeek(fromIso(row.dataset.mon),d?d.dataset.d:undefined,true);
+};
+$('cPrev').onclick=()=>{view.cm--;if(view.cm<0){view.cm=11;view.cy--;}render();};
+$('cNext').onclick=()=>{view.cm++;if(view.cm>11){view.cm=0;view.cy++;}render();};
+$('cNow').onclick=()=>selectWeek(mondayOf(new Date()),todayIso());
+$('wPrev').onclick=()=>selectWeek(addDays(view.weekStart,-7));
+$('wNext').onclick=()=>selectWeek(addDays(view.weekStart,7));
+$('wNow').onclick=()=>selectWeek(mondayOf(new Date()),todayIso());
+$('mPrev').onclick=()=>{view.mm--;if(view.mm<0){view.mm=11;view.my--;}render();};
+$('mNext').onclick=()=>{view.mm++;if(view.mm>11){view.mm=0;view.my++;}render();};
+$('mNow').onclick=()=>{const n=new Date();view.my=n.getFullYear();view.mm=n.getMonth();render();};
+$('yPrev').onclick=()=>{view.yy--;render();};
+$('yNext').onclick=()=>{view.yy++;render();};
+$('yNow').onclick=()=>{view.yy=new Date().getFullYear();render();};
+$('mRows').onclick=e=>{const tr=e.target.closest('tr');if(!tr)return;view.tab='week';selectWeek(fromIso(tr.dataset.mon));};
+$('yRows').onclick=e=>{const tr=e.target.closest('tr');if(!tr)return;view.my=view.yy;view.mm=+tr.dataset.m;view.tab='month';render();};
+$('showAll').onchange=e=>{view.showAll=e.target.checked;render();};
+
+/* per-week required hours override */
+$('reqIn').onchange=e=>{
+  const v=parseFloat(e.target.value),k=iso(view.weekStart);
+  if(v>=0){if(Math.abs(v-defReq())<0.001)delete state.weekReq[k];else state.weekReq[k]=v;}
+  render();
+};
+$('reqReset').onclick=()=>{delete state.weekReq[iso(view.weekStart)];render();};
+
+$('clock').onclick=()=>{
+  const n=new Date(),t=`${pad(n.getHours())}:${pad(n.getMinutes())}`;
+  if(state.openClock){
+    const oc=state.openClock,h=openHours();
+    state.openClock=null;
+    if(h>16){render();openAddDialog(oc.date,oc.in,'');toast('Clock was open over 16 h — please enter the correct out time.');return;}
+    state.entries.push({id:nid++,date:oc.date,type:'work',in:oc.in,out:t,hours:Math.round(h*60)/60});
+  }else state.openClock={date:todayIso(),in:t};
+  render();
+};
+$('rows').onclick=e=>{
+  const x=e.target.closest('.x');if(!x)return;
+  state.entries=state.entries.filter(en=>en.id!==+x.dataset.id);render();
+};
+
+/* add-entry dialog */
+/* custom date picker (the native one can't be themed) */
+const dpGet=id=>$(id).dataset.v||'';
+function dpSet(id,s){const i=$(id);i.dataset.v=s||'';i.value=s?fromIso(s).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'}):'';}
+let dpState=null;
+function dpClose(){if(dpState){dpState.pop.remove();dpState=null;}}
+function dpDraw(){
+  const {id,y,m,pop}=dpState,sel=dpGet(id),today=todayIso();
+  let h=`<div class="dphead"><button type="button" class="btn ghost sm" data-dp="prev">◀</button><b>${new Date(y,m,1).toLocaleDateString(undefined,{month:'long',year:'numeric'})}</b><button type="button" class="btn ghost sm" data-dp="next">▶</button></div>
+    <div class="dpgrid">${['Mo','Tu','We','Th','Fr','Sa','Su'].map(x=>`<span class="dow">${x}</span>`).join('')}`;
+  let d=mondayOf(new Date(y,m,1));
+  for(let i=0;i<42;i++){const s=iso(d);h+=`<button type="button" class="dpd${d.getMonth()!==m?' out':''}${s===today?' today':''}${s===sel?' sel':''}" data-dp="day" data-d="${s}">${d.getDate()}</button>`;d=addDays(d,1);}
+  pop.innerHTML=h+`</div><div class="dpfoot"><button type="button" class="link" data-dp="today">Today</button></div>`;
+}
+function dpPlace(){
+  const p=dpState.pop,r=$(dpState.id).getBoundingClientRect();
+  p.style.left=Math.max(8,Math.min(r.left,innerWidth-p.offsetWidth-8))+'px';
+  let top=r.bottom+6;if(top+p.offsetHeight>innerHeight-8)top=Math.max(8,r.top-p.offsetHeight-6);
+  p.style.top=top+'px';
+}
+function dpOpen(id){
+  dpClose();
+  const d=fromIso(dpGet(id)||todayIso()),pop=document.createElement('div');
+  pop.className='dppop';(($(id).closest('dialog'))||document.body).appendChild(pop);
+  dpState={id,y:d.getFullYear(),m:d.getMonth(),pop};
+  dpDraw();dpPlace();
+}
+function dpPick(s){
+  const id=dpState.id;dpSet(id,s);dpClose();
+  $(id).dispatchEvent(new Event('change',{bubbles:true}));
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-dp]');
+  if(b&&dpState&&dpState.pop.contains(b)){
+    const a=b.dataset.dp;
+    if(a==='prev'||a==='next'){dpState.m+=a==='next'?1:-1;if(dpState.m<0){dpState.m=11;dpState.y--;}if(dpState.m>11){dpState.m=0;dpState.y++;}dpDraw();}
+    else if(a==='day')dpPick(b.dataset.d);
+    else if(a==='today')dpPick(todayIso());
+    return;
+  }
+  const inp=e.target.closest('input.dp');
+  if(inp){dpOpen(inp.id);return;}
+  if(dpState&&!dpState.pop.contains(e.target))dpClose();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&dpState){e.preventDefault();e.stopPropagation();dpClose();return;}
+  if(e.target.matches&&e.target.matches('input.dp')&&['Enter',' ','ArrowDown'].includes(e.key)){e.preventDefault();dpOpen(e.target.id);}
+},true);
+document.querySelectorAll('dialog').forEach(d=>{
+  d.addEventListener('cancel',e=>{if(dpState){e.preventDefault();dpClose();}});
+  d.addEventListener('close',dpClose);
+});
+
+const defHrs=()=>f1(weekReq(mondayOf(fromIso(dpGet('fDate')||todayIso())))/5);
+function syncForm(){
+  const w=$('fType').value==='work';
+  $('gIn').style.display=$('gOut').style.display=w?'':'none';
+  $('gHrs').style.display=w?'none':'';
+}
+const hrsDefault=()=>$('fType').value==='flex'?'1':defHrs();
+$('fType').onchange=()=>{syncForm();if($('fType').value!=='work')$('fHrs').value=hrsDefault();};
+$('fDate').onchange=()=>{if($('fType').value!=='work')$('fHrs').value=hrsDefault();};
+function openAddDialog(date,tin,tout){
+  dpSet('fDate',date||view.selDate);$('fType').value='work';$('fNote').value='';syncForm();$('fHrs').value=defHrs();
+  if(tin!==undefined){$('fIn').value=tin||'';$('fOut').value=tout||'';}
+  $('dlgAdd').showModal();
+}
+$('openAdd').onclick=()=>openAddDialog();
+$('addClose').onclick=()=>$('dlgAdd').close();
+$('add').onclick=()=>{
+  const date=dpGet('fDate'),type=$('fType').value,note=$('fNote').value.trim();if(!date)return;
+  const extra=note?{note}:{};
+  if(type==='work'){
+    const i=$('fIn').value,o=$('fOut').value;if(!i||!o||hm(o)<=hm(i))return;
+    state.entries.push({id:nid++,date,type,in:i,out:o,hours:hm(o)-hm(i),...extra});
+  }else{
+    const h=parseFloat($('fHrs').value);if(!(h>0))return;
+    state.entries.push({id:nid++,date,type,hours:h,...extra});
+  }
+  $('dlgAdd').close();
+  selectWeek(mondayOf(fromIso(date)),date);
+};
+
+/* ================= Settings dialog ================= */
+let dlgYear=T0.getFullYear();
+function renderLots(){
+  $('sLots').innerHTML=state.compLots.map(l=>`<tr><td>${fdy(l.date)}</td><td class="r num">${fmt(l.hours)} h</td><td>${esc(l.note||'')}</td><td class="r"><span class="x" style="opacity:.6" data-lot="${l.id}" title="Remove">✕</span></td></tr>`).join('')
+    ||'<tr><td class="sec">No manual balances.</td></tr>';
+}
+function fillSettings(){
+  $('sWeekHrs').value=defReq();$('sDayHrs').value=f1(defReq()/5)+' h';$('sExp').value=state.config.expiryMonths;
+  const s=ys(dlgYear);$('sYear').value=dlgYear;$('sPto').value=s.pto;$('sSick').value=s.sick??'';
+  renderLots();
+}
+function openSettings(){
+  dlgYear=view.tab==='year'?view.yy:addDays(view.weekStart,3).getFullYear();
+  fillSettings();$('dlg').showModal();
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('[data-settings]')){openSettings();return;}
+  const g=e.target.closest('[data-goto]');if(g){view.tab=g.dataset.goto;render();return;}
+  const lx=e.target.closest('[data-lot]');
+  if(lx){state.compLots=state.compLots.filter(l=>l.id!==+lx.dataset.lot);renderLots();render();}
+});
+$('dlgClose').onclick=()=>$('dlg').close();
+$('sWeekHrs').onchange=e=>{const v=parseFloat(e.target.value);if(v>0)state.config.weekHours=v;fillSettings();render();};
+$('sExp').onchange=e=>{const v=parseInt(e.target.value);if(v>=1)state.config.expiryMonths=v;fillSettings();render();};
+$('sYear').onchange=e=>{const v=parseInt(e.target.value);if(v>1900)dlgYear=v;fillSettings();};
+$('sPto').onchange=e=>{ys(dlgYear).pto=Math.max(0,parseFloat(e.target.value)||0);render();};
+$('sSick').onchange=e=>{const v=e.target.value.trim();ys(dlgYear).sick=v===''?null:Math.max(0,parseFloat(v)||0);render();};
+$('lAdd').onclick=()=>{
+  const date=dpGet('lDate'),h=parseFloat($('lHrs').value);if(!date||!(h>0))return;
+  state.compLots.push({id:nid++,date,hours:h,note:$('lNote').value.trim()});
+  dpSet('lDate','');$('lHrs').value=$('lNote').value='';
+  renderLots();render();
+};
+
+/* wrap every number input with − / + buttons */
+document.querySelectorAll('input[type=number]:not(#sYear):not(#lHrs)').forEach(inp=>{
+  const w=document.createElement('div');w.className='stepper';
+  inp.before(w);
+  const mk=(t,d)=>{const b=document.createElement('button');b.type='button';b.tabIndex=-1;b.textContent=t;b.setAttribute('aria-label',d>0?'Increase':'Decrease');
+    b.onclick=()=>{
+      const st=parseFloat(inp.step)||1,min=inp.min!==''?+inp.min:-Infinity,max=inp.max!==''?+inp.max:Infinity;
+      const v=parseFloat(inp.value);const n=Math.min(max,Math.max(min,Math.round(((isNaN(v)?(isFinite(min)?(d>0?min-st:min):0):v)+d*st)*1e6)/1e6));
+      inp.value=isFinite(n)?n:0;inp.dispatchEvent(new Event('input',{bubbles:true}));inp.dispatchEvent(new Event('change',{bubbles:true}));};
+    return b;};
+  w.append(mk('−',-1),inp,mk('+',1));
+});
+
+/* ================= Startup ================= */
+function boot(){syncCal();setTheme(state.ui.theme==='light');render();}
+function goDemo(){
+  seedDemo();$('demoPill').hidden=false;boot();
+}
+async function goLive(){
+  try{
+    applyLoaded(await window.pywebview.api.load_state());
+    lastSaved=JSON.stringify(persistable());
+    LIVE=true;
+  }catch(e){toast('Could not load saved data — saving is disabled. '+(e&&e.message||e));}
+  boot();
+}
+if(/[?&]demo\b/.test(location.search))goDemo();
+else if(window.pywebview&&window.pywebview.api&&window.pywebview.api.load_state)goLive();
+else{
+  let started=false;
+  window.addEventListener('pywebviewready',()=>{if(!started){started=true;goLive();}});
+  setTimeout(()=>{if(!started&&!window.pywebview){started=true;goDemo();}},700);
+}
+</script>
+<div id="toast" class="toast" hidden></div>
+</body></html>
